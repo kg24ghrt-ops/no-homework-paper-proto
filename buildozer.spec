@@ -15,11 +15,15 @@ android.permissions = WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE
 android.api = 36
 android.minapi = 21
 android.ndk = 29
+android.archs = arm64-v8a
 android.accept_sdk_license = True
 
 [buildozer]
 log_level = 2
 warn_on_root = 1
 
+
+
 [p4a]
-branch = v2026.05.09
+branch = master
+commit = d2ee8c54d9d42375a95f18159e950a119671cf63

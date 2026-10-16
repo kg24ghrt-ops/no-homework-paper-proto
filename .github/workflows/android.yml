@@ -93,3 +93,16 @@ jobs:
           path: bin/*.apk
           if-no-files-found: error
           retention-days: 7
+
+      - name: Cache Buildozer and dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.buildozer
+            .buildozer
+            ~/.cache/pip
+          key: buildozer-${{ runner.os }}-arm64-v8a-${{ hashFiles('buildozer.spec') }}-${{ hashFiles('.github/workflows/android.yml') }}
+          restore-keys: |
+            buildozer-${{ runner.os }}-arm64-v8a-${{ hashFiles('buildozer.spec') }}-
+            buildozer-${{ runner.os }}-arm64-v8a-
+            buildozer-${{ runner.os }}-
