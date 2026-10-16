@@ -20,3 +20,6 @@ android.accept_sdk_license = True
 [buildozer]
 log_level = 2
 warn_on_root = 1
+
+[p4a]
+branch = v2026.05.09
