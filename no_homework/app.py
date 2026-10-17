@@ -1,17 +1,20 @@
-"""Entry point for the No Homework notebook paper prototype."""
+"""Kivy front end for the No Homework notebook paper prototype."""
 
+from typing import Optional
+
+from PIL import Image as PILImage
 from kivy.app import App
 from kivy.lang import Builder
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.image import Image as KivyImage
-from kivy.core.image import Texture
-from kivy.utils import platform
 
 from no_homework.config import PaperConfig
-from no_homework.paper import render_page
 from no_homework.export import export_png
+from no_homework.paper import render_page
 
-KV = '''
+# Fraction of full resolution used for the on-screen preview texture.
+_PREVIEW_SCALE = 0.25
+
+KV = """
 <NotebookRoot>:
     orientation: 'vertical'
     spacing: dp(12)
@@ -65,47 +68,74 @@ KV = '''
         color: 0.60, 0.60, 0.60, 1
         font_size: sp(13)
         halign: 'center'
-'''
+"""
 
 
 class NotebookRoot(BoxLayout):
-    pass
+    """Root layout widget referenced by the KV string above."""
+
+
+def _make_preview_texture(image: PILImage.Image):
+    """Build a Kivy texture from a downscaled copy of *image*."""
+    from kivy.core.image import Texture
+
+    preview = image.resize(
+        (int(image.width * _PREVIEW_SCALE), int(image.height * _PREVIEW_SCALE))
+    )
+    texture = Texture.create(size=preview.size, colorfmt="rgb")
+    texture.blit_buffer(preview.tobytes(), colorfmt="rgb", bufferfmt="ubyte")
+    return texture
 
 
 class NotebookApp(App):
-    def build(self):
-        self.title = 'No Homework Notebook'
-        self.root = Builder.load_string(KV)
-        self.config = PaperConfig()
-        self.image = render_page(self.config)
-        self.preview = self.root.ids.preview
-        self.status = self.root.ids.status
-        self.regen_btn = self.root.ids.regen_btn
-        self.export_btn = self.root.ids.export_btn
-        self._update_preview()
-        self.regen_btn.bind(on_press=self.regenerate)
-        self.export_btn.bind(on_press=self.export)
-        return self.root
+    """Small desktop/Android UI to preview and export the generated page."""
 
-    def _update_preview(self):
-        from PIL import Image as PILImage
-        preview = self.image.resize((int(self.image.width * 0.25), int(self.image.height * 0.25)))
-        data = preview.tobytes()
-        texture = Texture.create(size=preview.size, colorfmt="rgb")
-        texture.blit_buffer(data, colorfmt="rgb", bufferfmt="ubyte")
-        self.preview.texture = texture
+    def __init__(self, config: Optional[PaperConfig] = None, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.config = config or PaperConfig()
+        self.image: Optional[PILImage.Image] = None
 
-    def regenerate(self, *args):
+    def build(self) -> NotebookRoot:
+        self.title = "No Homework Notebook"
+        root: NotebookRoot = Builder.load_string(KV)
+        self.root = root
         self.image = render_page(self.config)
         self._update_preview()
-        self.status.text = 'Page regenerated'
+        root.ids.regen_btn.bind(on_press=self.regenerate)
+        root.ids.export_btn.bind(on_press=self.export)
+        return root
 
-    def export(self, *args):
+    # Internal helpers -----------------------------------------------------
+
+    @property
+    def _preview_widget(self):
+        return self.root.ids.preview
+
+    @property
+    def _status_widget(self):
+        return self.root.ids.status
+
+    def _update_preview(self) -> None:
+        if self.image is not None:
+            self._preview_widget.texture = _make_preview_texture(self.image)
+
+    def _set_status(self, text: str) -> None:
+        self._status_widget.text = text
+
+    # Event callbacks ------------------------------------------------------
+
+    def regenerate(self, *_args) -> None:
+        self.image = render_page(self.config)
+        self._update_preview()
+        self._set_status("Page regenerated")
+
+    def export(self, *_args) -> None:
         try:
-            path = export_png('no_homework.png', self.config, overwrite=True)
-            self.status.text = f'Exported: {path}'
-        except Exception as exc:
-            self.status.text = f'Error: {exc}'
+            path = export_png("no_homework.png", self.config, overwrite=True)
+        except Exception as exc:  # surface any failure in the status bar
+            self._set_status(f"Error: {exc}")
+        else:
+            self._set_status(f"Exported: {path}")
 
 
 def main() -> None:
