@@ -32,7 +32,8 @@ def render_page(config: Optional[PaperConfig] = None) -> Image.Image:
     margin_left = config.mm_to_px(config.margin_left_mm)
     top = config.mm_to_px(config.margin_top_mm)
     bottom = config.mm_to_px(config.margin_bottom_mm)
-    spacing = config.mm_to_px(config.line_spacing_mm)
+    # Guard against a zero step crashing range() at very low DPI values.
+    spacing = max(1, config.mm_to_px(config.line_spacing_mm))
     line_thickness = max(1, config.mm_to_px(config.line_thickness_mm))
     margin_thickness = max(1, config.mm_to_px(config.margin_line_thickness_mm))
 

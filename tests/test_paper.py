@@ -38,6 +38,83 @@ class TestConfig(unittest.TestCase):
         with self.assertRaises(ValueError):
             render_page(c)
 
+    def test_invalid_margins_rejected(self):
+        with self.assertRaises(ValueError):
+            PaperConfig(margin_left_mm=-1.0)
+        with self.assertRaises(ValueError):
+            PaperConfig(margin_top_mm=-5.0)
+        # Margins that leave no drawable text area are rejected too.
+        with self.assertRaises(ValueError):
+            PaperConfig(margin_top_mm=200.0, margin_bottom_mm=60.0)  # >= 257 mm tall
+        with self.assertRaises(ValueError):
+            PaperConfig(margin_left_mm=182.0)  # == page width
+
+
+class TestColorValidation(unittest.TestCase):
+    def test_out_of_range_components_rejected(self):
+        with self.assertRaises(ValueError):
+            PaperConfig(paper_color=(300, 0, 0))
+        with self.assertRaises(ValueError):
+            PaperConfig(ruling_color=(0, -1, 0))
+
+    def test_wrong_shape_or_type_rejected(self):
+        with self.assertRaises(ValueError):
+            PaperConfig(margin_line_color=(0, 0))  # not an RGB triple
+        with self.assertRaises(ValueError):
+            PaperConfig(paper_color="blue")  # not a tuple
+        with self.assertRaises(ValueError):
+            PaperConfig(ruling_color=(0.5, 0.5, 0.5))  # non-integer components
+
+    def test_boundary_values_accepted(self):
+        c = PaperConfig(paper_color=(0, 0, 0), ruling_color=(255, 255, 255))
+        self.assertEqual(c.paper_color, (0, 0, 0))
+
+
+class TestLineSpacingPixels(unittest.TestCase):
+    def test_converted_line_spacing_at_least_one_pixel(self):
+        # Any positive line spacing converts to at least one pixel, even at
+        # an extremely low DPI where plain rounding would produce zero.
+        c = PaperConfig(dpi=1, line_spacing_mm=0.05)
+        self.assertGreaterEqual(c.mm_to_px(c.line_spacing_mm), 1)
+        c.validate()  # must not raise
+
+    def test_zero_lengths_convert_to_zero_pixels(self):
+        c = PaperConfig(dpi=1)
+        self.assertEqual(c.mm_to_px(0.0), 0)
+        # A zero line spacing means "no ruling" and stays legal.
+        PaperConfig(line_spacing_mm=0.0)
+
+    def test_rounding_boundary_accepted(self):
+        # 0.1 mm at 1 DPI rounds up to exactly one pixel -> valid config.
+        c = PaperConfig(dpi=1, line_spacing_mm=0.1)
+        self.assertEqual(c.mm_to_px(c.line_spacing_mm), 1)
+        img = render_page(c)
+        self.assertGreater(img.height, 0)
+
+    def test_render_with_subpixel_spacing_does_not_crash(self):
+        # The classic failure: at 72 DPI, 0.05 mm rounded to zero pixels and
+        # range() raised "arg 3 must not be zero".  Now the converted spacing
+        # is at least one pixel and rendering succeeds.
+        c = PaperConfig(dpi=72, line_spacing_mm=0.05)
+        img = render_page(c)
+        self.assertEqual(img.mode, "RGB")
+
+    def test_render_never_gets_zero_spacing(self):
+        # Defense in depth: even if validation were bypassed entirely, the
+        # drawing code guards the range() step with max(1, ...) and renders.
+        import no_homework.config as config_module
+
+        c = PaperConfig(dpi=72)
+        object.__setattr__(c, "line_spacing_mm", 0.0)  # raw conversion is 0 px
+
+        original = config_module.PaperConfig.validate
+        try:
+            config_module.PaperConfig.validate = lambda self: None
+            img = render_page(c)
+        finally:
+            config_module.PaperConfig.validate = original
+        self.assertEqual(img.mode, "RGB")
+
 
 class TestRender(unittest.TestCase):
     def test_dimensions_and_mode(self):
