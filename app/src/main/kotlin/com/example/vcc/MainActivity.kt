@@ -30,9 +30,7 @@ class MainActivity : AppCompatActivity() {
             windowInsets
         }
 
-
-
         val nativeMessage = NativeLib().stringFromJNI()
-        findViewById<TextView>(R.id.textView).text = nativeMessage
+        findViewById<TextView>(R.id.TextView).text = nativeMessage
     }
 }
